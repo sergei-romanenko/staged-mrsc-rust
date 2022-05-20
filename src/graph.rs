@@ -2,6 +2,8 @@
 // Graphs of configurations
 //
 
+use crate::misc::cartesian;
+
 use iter_comprehensions::{map, sum as vec_sum, vec as vec_map};
 use itertools::Itertools;
 use std::fmt;
@@ -37,15 +39,19 @@ use std::rc::Rc;
 #[derive(Clone, PartialEq, Debug)]
 pub enum Graph<C> {
   Back(C),
-  Forth(C, Vec<Rc<Graph<C>>>),
+  Forth(C, Gs<C>),
 }
 
+type Gs<C> = Vec<Rc<Graph<C>>>;
+
+use Graph::{Back, Forth};
+
 fn back<C: Clone>(c: &C) -> Rc<Graph<C>> {
-  Rc::new(Graph::Back(c.clone()))
+  Rc::new(Back(c.clone()))
 }
 
 fn forth<C: Clone>(c: &C, gs: &[Rc<Graph<C>>]) -> Rc<Graph<C>> {
-  Rc::new(Graph::Forth(c.clone(), vec_map!(Rc::clone(g); g in gs)))
+  Rc::new(Forth(c.clone(), vec_map!(Rc::clone(g); g in gs)))
 }
 
 // GraphPrettyPrinter
@@ -57,10 +63,10 @@ fn graph_pretty_printer_loop<C: fmt::Display>(
   let mut sb: Vec<String> = Vec::new();
   let ind = " ".repeat(indent);
   match g {
-    Graph::Back(c) => {
+    Back(c) => {
       sb.push(format!("{}{}{}{}", ind, "|__", c, "*"));
     }
-    Graph::Forth(c, gs) => {
+    Forth(c, gs) => {
       sb.push(format!("{}{}{}", ind, "|__", c));
       for g1 in gs {
         sb.push(format!("{}{}{}", "\n  ", ind, "|"));
@@ -96,48 +102,37 @@ pub fn graph_pretty_printer<C: fmt::Display>(g: &Graph<C>) -> String {
 pub enum LazyGraph<C> {
   Empty(),
   Stop(C),
-  Build(C, Vec<Vec<Rc<LazyGraph<C>>>>),
+  Build(C, Vec<Ls<C>>),
 }
 
+type Ls<C> = Vec<Rc<LazyGraph<C>>>;
+
+use LazyGraph::{Build, Empty, Stop};
+
 fn empty<C: Clone>() -> Rc<LazyGraph<C>> {
-  Rc::new(LazyGraph::Empty())
+  Rc::new(Empty())
 }
 
 fn stop<C: Clone>(c: &C) -> Rc<LazyGraph<C>> {
-  Rc::new(LazyGraph::Stop(c.clone()))
+  Rc::new(Stop(c.clone()))
 }
 
-fn build<C: Clone>(c: &C, lss: &[Vec<Rc<LazyGraph<C>>>]) -> Rc<LazyGraph<C>> {
-  Rc::new(LazyGraph::Build(
+fn build<C: Clone>(c: &C, lss: &[Ls<C>]) -> Rc<LazyGraph<C>> {
+  Rc::new(Build(
     c.clone(),
     vec_map!(vec_map!(Rc::clone(l); l in ls); ls in lss),
   ))
 }
 
-// LazyGraph8
-
 // The semantics of a `LazyGraph a` is formally defined by
 // the interpreter `unroll` that generates a list of `Graph a` from
 // the `LazyGraph a` by executing commands recorded in the `LazyGraph a`.
 
-//
-// Cartesian product
-//
-
-fn cartesian<X: Clone>(xss: &Vec<Vec<X>>) -> Vec<Vec<X>> {
-  if xss.is_empty() {
-    vec![vec![]]
-  } else {
-    let yss = xss.iter().multi_cartesian_product();
-    vec_map!(vec_map!(y.clone(); y in ys); ys in yss)
-  }
-}
-
-pub fn unroll<C: Clone>(l: &LazyGraph<C>) -> Vec<Rc<Graph<C>>> {
+pub fn unroll<C: Clone>(l: &LazyGraph<C>) -> Gs<C> {
   match l {
-    LazyGraph::Empty() => Vec::new(),
-    LazyGraph::Stop(c) => vec![back(c)],
-    LazyGraph::Build(c, lss) => {
+    Empty() => Vec::new(),
+    Stop(c) => vec![back(c)],
+    Build(c, lss) => {
       let gss = Itertools::concat(
         map!(cartesian(&vec_map!(unroll(l); l in ls)); ls in lss),
       );
@@ -183,17 +178,14 @@ pub fn unroll<C: Clone>(l: &LazyGraph<C>) -> Vec<Rc<Graph<C>>> {
 
 fn bad_graph<C>(bad: fn(&C) -> bool, g: &Graph<C>) -> bool {
   match g {
-    Graph::Back(c) => bad(c),
-    Graph::Forth(c, gs) => bad(c) || gs.iter().any(|g| bad_graph(bad, g)),
+    Back(c) => bad(c),
+    Forth(c, gs) => bad(c) || gs.iter().any(|g| bad_graph(bad, g)),
   }
 }
 
 // This filter removes the graphs containing "bad" configurations.
 
-pub fn fl_bad_conf<C>(
-  bad: fn(&C) -> bool,
-  gs: Vec<Rc<Graph<C>>>,
-) -> Vec<Rc<Graph<C>>> {
+pub fn fl_bad_conf<C>(bad: fn(&C) -> bool, gs: Gs<C>) -> Gs<C> {
   vec_map!(g; g in gs, !bad_graph(bad, &g))
 }
 
@@ -205,16 +197,13 @@ pub fn fl_bad_conf<C>(
 
 pub fn cl_empty<C: Clone>(l: &LazyGraph<C>) -> Rc<LazyGraph<C>> {
   match l {
-    LazyGraph::Empty() => empty(),
-    LazyGraph::Stop(c) => stop(c),
-    LazyGraph::Build(c, lss) => cl_empty_build(c, &cl_empty_lss(lss)),
+    Empty() => empty(),
+    Stop(c) => stop(c),
+    Build(c, lss) => cl_empty_build(c, &cl_empty_lss(lss)),
   }
 }
 
-fn cl_empty_build<C: Clone>(
-  c: &C,
-  lss: &[Vec<Rc<LazyGraph<C>>>],
-) -> Rc<LazyGraph<C>> {
+fn cl_empty_build<C: Clone>(c: &C, lss: &[Ls<C>]) -> Rc<LazyGraph<C>> {
   if lss.is_empty() {
     empty()
   } else {
@@ -222,15 +211,11 @@ fn cl_empty_build<C: Clone>(
   }
 }
 
-fn cl_empty_lss<C: Clone>(
-  lss: &Vec<Vec<Rc<LazyGraph<C>>>>,
-) -> Vec<Vec<Rc<LazyGraph<C>>>> {
+fn cl_empty_lss<C: Clone>(lss: &Vec<Ls<C>>) -> Vec<Ls<C>> {
   lss.into_iter().filter_map(|ls| cl_empty_ls(ls)).collect()
 }
 
-fn cl_empty_ls<C: Clone>(
-  ls: &Vec<Rc<LazyGraph<C>>>,
-) -> Option<Vec<Rc<LazyGraph<C>>>> {
+fn cl_empty_ls<C: Clone>(ls: &Ls<C>) -> Option<Ls<C>> {
   let ls1 = vec_map!(cl_empty(l); l in ls);
   if ls1.clone().into_iter().any(|l| is_lg_empty(&l)) {
     None
@@ -241,7 +226,7 @@ fn cl_empty_ls<C: Clone>(
 
 fn is_lg_empty<C>(l: &LazyGraph<C>) -> bool {
   match l {
-    LazyGraph::Empty() => true,
+    Empty() => true,
     _ => false,
   }
 }
@@ -257,15 +242,15 @@ fn cl_bad_conf<C: Clone>(
   l: &LazyGraph<C>,
 ) -> Rc<LazyGraph<C>> {
   match l {
-    LazyGraph::Empty() => empty(),
-    LazyGraph::Stop(c) => {
+    Empty() => empty(),
+    Stop(c) => {
       if bad(c) {
         empty()
       } else {
         stop(c)
       }
     }
-    LazyGraph::Build(c, lss) => {
+    Build(c, lss) => {
       if bad(c) {
         empty()
       } else {
@@ -295,9 +280,8 @@ pub fn cl_empty_and_bad<C: Clone>(
 
 pub fn graph_size<C>(g: &Graph<C>) -> usize {
   match g {
-    // Graph::Back(_) => 1
-    Graph::Back(_) => 1,
-    Graph::Forth(_, gs) => 1 + vec_sum!(graph_size(g1); g1 in gs),
+    Back(_) => 1,
+    Forth(_, gs) => 1 + vec_sum!(graph_size(g1); g1 in gs),
   }
 }
 
@@ -313,9 +297,9 @@ pub fn cl_min_size<C: Clone>(l: &LazyGraph<C>) -> Rc<LazyGraph<C>> {
 
 fn sel_min_size<C: Clone>(l: &LazyGraph<C>) -> (usize, Rc<LazyGraph<C>>) {
   match l {
-    LazyGraph::Empty() => (usize::MAX, empty()),
-    LazyGraph::Stop(c) => (1, stop(c)),
-    LazyGraph::Build(c, lss) => match sel_min_size2(lss) {
+    Empty() => (usize::MAX, empty()),
+    Stop(c) => (1, stop(c)),
+    Build(c, lss) => match sel_min_size2(lss) {
       (usize::MAX, _) => (usize::MAX, empty()),
       (k, ls) => (1 + k, build(c, &[ls])),
     },
@@ -330,9 +314,7 @@ fn select_min2<T: Clone>(kx1: (usize, T), kx2: (usize, T)) -> (usize, T) {
   }
 }
 
-fn sel_min_size2<C: Clone>(
-  lss: &[Vec<Rc<LazyGraph<C>>>],
-) -> (usize, Vec<Rc<LazyGraph<C>>>) {
+fn sel_min_size2<C: Clone>(lss: &[Ls<C>]) -> (usize, Ls<C>) {
   let mut acc = (usize::MAX, Vec::<Rc<LazyGraph<C>>>::new());
   for ls in lss {
     acc = select_min2(sel_min_size_and(ls), acc);
@@ -340,9 +322,7 @@ fn sel_min_size2<C: Clone>(
   acc
 }
 
-fn sel_min_size_and<C: Clone>(
-  ls: &[Rc<LazyGraph<C>>],
-) -> (usize, Vec<Rc<LazyGraph<C>>>) {
+fn sel_min_size_and<C: Clone>(ls: &[Rc<LazyGraph<C>>]) -> (usize, Ls<C>) {
   let mut k = 0usize;
   let mut ls1 = Vec::<Rc<LazyGraph<C>>>::new();
   for l in ls {
@@ -527,7 +507,6 @@ mod tests {
   fn test_cl_min_size_unroll() {
     let min_l = cl_min_size(&l3());
     let min_g = unroll(&min_l)[0].clone();
-    assert_eq!(min_g,
-      forth(&1, &[forth(&3, &[back(&4)])]));
+    assert_eq!(min_g, forth(&1, &[forth(&3, &[back(&4)])]));
   }
 }
