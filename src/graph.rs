@@ -42,15 +42,15 @@ pub enum Graph<C> {
   Forth(C, Gs<C>),
 }
 
-type Gs<C> = Vec<Rc<Graph<C>>>;
+pub type Gs<C> = Vec<Rc<Graph<C>>>;
 
 use Graph::{Back, Forth};
 
-fn back<C: Clone>(c: &C) -> Rc<Graph<C>> {
+pub fn back<C: Clone>(c: &C) -> Rc<Graph<C>> {
   Rc::new(Back(c.clone()))
 }
 
-fn forth<C: Clone>(c: &C, gs: &[Rc<Graph<C>>]) -> Rc<Graph<C>> {
+pub fn forth<C: Clone>(c: &C, gs: &[Rc<Graph<C>>]) -> Rc<Graph<C>> {
   Rc::new(Forth(c.clone(), vec_map!(Rc::clone(g); g in gs)))
 }
 
@@ -105,19 +105,19 @@ pub enum LazyGraph<C> {
   Build(C, Vec<Ls<C>>),
 }
 
-type Ls<C> = Vec<Rc<LazyGraph<C>>>;
+pub type Ls<C> = Vec<Rc<LazyGraph<C>>>;
 
 use LazyGraph::{Build, Empty, Stop};
 
-fn empty<C: Clone>() -> Rc<LazyGraph<C>> {
+pub fn empty<C: Clone>() -> Rc<LazyGraph<C>> {
   Rc::new(Empty())
 }
 
-fn stop<C: Clone>(c: &C) -> Rc<LazyGraph<C>> {
+pub fn stop<C: Clone>(c: &C) -> Rc<LazyGraph<C>> {
   Rc::new(Stop(c.clone()))
 }
 
-fn build<C: Clone>(c: &C, lss: &[Ls<C>]) -> Rc<LazyGraph<C>> {
+pub fn build<C: Clone>(c: &C, lss: &[Ls<C>]) -> Rc<LazyGraph<C>> {
   Rc::new(Build(
     c.clone(),
     vec_map!(vec_map!(Rc::clone(l); l in ls); ls in lss),
