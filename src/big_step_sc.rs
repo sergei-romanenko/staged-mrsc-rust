@@ -73,30 +73,30 @@ pub trait ScWorld<C: Clone> {
 // Big-step multi-result supercompilation
 // (The naive version builds Cartesian products immediately.)
 
-fn naive_mrsc_loop<C, W>(w: &W, h: &History<C>, c: C) -> Gs<C>
+fn naive_mrsc_loop<C, S>(s: &S, h: &History<C>, c: C) -> Gs<C>
 where
   C: Clone,
-  W: ScWorld<C>,
+  S: ScWorld<C>,
 {
-  if w.is_foldable_to_history(&c, &h) {
+  if s.is_foldable_to_history(&c, &h) {
     return vec![back(&c)];
-  } else if w.is_dangerous(&h) {
+  } else if s.is_dangerous(&h) {
     return vec![];
   } else {
-    let css = w.develop(&c);
+    let css = s.develop(&c);
     let h1 = h.cons(c.clone());
-    let gsss = map!(cartesian(&vec_map!(naive_mrsc_loop(w, &h1, c1); c1 in cs));
+    let gsss = map!(cartesian(&vec_map!(naive_mrsc_loop(s, &h1, c1); c1 in cs));
                 cs in css);
     return vec_map!(forth(&c, &gs); gs in Itertools::concat(gsss));
   }
 }
 
-pub fn naive_mrsc<C, W>(w: &W, c0: C) -> Gs<C>
+pub fn naive_mrsc<C, S>(s: &S, c0: C) -> Gs<C>
 where
   C: Clone,
-  W: ScWorld<C>,
+  S: ScWorld<C>,
 {
-  naive_mrsc_loop(w, &History::new(), c0)
+  naive_mrsc_loop(s, &History::new(), c0)
 }
 
 // "Lazy" multi-result supercompilation.
@@ -106,30 +106,30 @@ where
 // with get-graphs being an "interpreter" that evaluates the "program"
 // returned by lazy_mrsc.
 
-fn lazy_mrsc_loop<C, W>(w: &W, h: &History<C>, c: C) -> Rc<LazyGraph<C>>
+fn lazy_mrsc_loop<C, S>(s: &S, h: &History<C>, c: C) -> Rc<LazyGraph<C>>
 where
   C: Clone,
-  W: ScWorld<C>,
+  S: ScWorld<C>,
 {
-  if w.is_foldable_to_history(&c, &h) {
+  if s.is_foldable_to_history(&c, &h) {
     stop(&c)
-  } else if w.is_dangerous(&h) {
+  } else if s.is_dangerous(&h) {
     empty()
   } else {
-    let css = w.develop(&c);
+    let css = s.develop(&c);
     let h1 = h.cons(c.clone());
-    let ls: Vec<Ls<C>> = vec_map!(vec_map!(lazy_mrsc_loop(w, &h1, c1); c1 in cs);
+    let ls: Vec<Ls<C>> = vec_map!(vec_map!(lazy_mrsc_loop(s, &h1, c1); c1 in cs);
         cs in css);
     build(&c, &ls)
   }
 }
 
-pub fn lazy_mrsc<C, W>(w: &W, c0: C) -> Rc<LazyGraph<C>>
+pub fn lazy_mrsc<C, S>(s: &S, c0: C) -> Rc<LazyGraph<C>>
 where
   C: Clone,
-  W: ScWorld<C>,
+  S: ScWorld<C>,
 {
-  lazy_mrsc_loop(w, &History::new(), c0)
+  lazy_mrsc_loop(s, &History::new(), c0)
 }
 
 #[cfg(test)]
