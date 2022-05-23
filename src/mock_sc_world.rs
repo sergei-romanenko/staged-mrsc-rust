@@ -13,7 +13,9 @@ fn rebuild(c: &isize) -> Vec<Vec<isize>> {
     vec![vec![c + 1]]
 }
 
-impl ScWorld<isize> for isize {
+impl ScWorld for isize {
+    type C = isize;
+
     fn is_dangerous(&self, h: &History<isize>) -> bool {
         h.length() > 3
     }

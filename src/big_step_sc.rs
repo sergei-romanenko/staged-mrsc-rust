@@ -58,14 +58,16 @@ use iter_comprehensions::{map, vec as vec_map};
 use itertools::Itertools;
 use std::rc::Rc;
 
-pub trait ScWorld<C: Clone> {
-  fn is_dangerous(&self, h: &History<C>) -> bool;
+pub trait ScWorld {
+  type C: Clone;
 
-  fn is_foldable_to(&self, c1: &C, c2: &C) -> bool;
+  fn is_dangerous(&self, h: &History<Self::C>) -> bool;
 
-  fn develop(&self, c: &C) -> Vec<Vec<C>>;
+  fn is_foldable_to(&self, c1: &Self::C, c2: &Self::C) -> bool;
 
-  fn is_foldable_to_history(&self, c: &C, h: &History<C>) -> bool {
+  fn develop(&self, c: &Self::C) -> Vec<Vec<Self::C>>;
+
+  fn is_foldable_to_history(&self, c: &Self::C, h: &History<Self::C>) -> bool {
     h.any(|c2| self.is_foldable_to(c, c2))
   }
 }
@@ -73,10 +75,9 @@ pub trait ScWorld<C: Clone> {
 // Big-step multi-result supercompilation
 // (The naive version builds Cartesian products immediately.)
 
-fn naive_mrsc_loop<C, S>(s: &S, h: &History<C>, c: C) -> Gs<C>
+fn naive_mrsc_loop<S>(s: &S, h: &History<S::C>, c: S::C) -> Gs<S::C>
 where
-  C: Clone,
-  S: ScWorld<C>,
+  S: ScWorld,
 {
   if s.is_foldable_to_history(&c, &h) {
     return vec![back(&c)];
@@ -91,10 +92,9 @@ where
   }
 }
 
-pub fn naive_mrsc<C, S>(s: &S, c0: C) -> Gs<C>
+pub fn naive_mrsc<S>(s: &S, c0: S::C) -> Gs<S::C>
 where
-  C: Clone,
-  S: ScWorld<C>,
+  S: ScWorld,
 {
   naive_mrsc_loop(s, &History::new(), c0)
 }
@@ -106,10 +106,9 @@ where
 // with get-graphs being an "interpreter" that evaluates the "program"
 // returned by lazy_mrsc.
 
-fn lazy_mrsc_loop<C, S>(s: &S, h: &History<C>, c: C) -> Rc<LazyGraph<C>>
+fn lazy_mrsc_loop<S>(s: &S, h: &History<S::C>, c: S::C) -> Rc<LazyGraph<S::C>>
 where
-  C: Clone,
-  S: ScWorld<C>,
+  S: ScWorld,
 {
   if s.is_foldable_to_history(&c, &h) {
     stop(&c)
@@ -118,16 +117,15 @@ where
   } else {
     let css = s.develop(&c);
     let h1 = h.cons(c.clone());
-    let ls: Vec<Ls<C>> = vec_map!(vec_map!(lazy_mrsc_loop(s, &h1, c1); c1 in cs);
+    let ls: Vec<Ls<S::C>> = vec_map!(vec_map!(lazy_mrsc_loop(s, &h1, c1); c1 in cs);
         cs in css);
     build(&c, &ls)
   }
 }
 
-pub fn lazy_mrsc<C, S>(s: &S, c0: C) -> Rc<LazyGraph<C>>
+pub fn lazy_mrsc<S>(s: &S, c0: S::C) -> Rc<LazyGraph<S::C>>
 where
-  C: Clone,
-  S: ScWorld<C>,
+  S: ScWorld,
 {
   lazy_mrsc_loop(s, &History::new(), c0)
 }
