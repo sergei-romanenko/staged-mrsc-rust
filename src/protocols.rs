@@ -33,16 +33,17 @@ mod tests {
 
     use crate::big_step_sc::*;
     use crate::graph::*;
+    use crate::statistics::*;
 
     fn run_min_sc<CW: CountersWorld + Debug>(cw: CW, m: isize, d: usize) {
         let name = format!("{:?}", cw);
-        println!("\n{} ", name);
+        print!("\n{} ", name);
         let s = CountersScWorld::new(cw, m, d);
         let l = lazy_mrsc(&s, CW::start());
         let sl = cl_empty_and_bad(CW::is_unsafe, &l);
 
-        // let (len_usl, size_usl) = size_unroll(sl);
-        // println("($len_usl, $size_usl)")
+        let (len_usl, size_usl) = size_unroll(&sl);
+        println!("({}, {})", len_usl, size_usl);
 
         let ml = cl_min_size(&sl);
         let gs = unroll(&ml);
