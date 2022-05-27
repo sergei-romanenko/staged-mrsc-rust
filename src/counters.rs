@@ -4,6 +4,7 @@ use crate::misc::{cartesian, History};
 use iter_comprehensions::vec as vec_map;
 use itertools::zip;
 use std::cmp::{Ordering, PartialOrd};
+use std::convert::From;
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Add, Sub};
@@ -23,6 +24,28 @@ impl fmt::Display for NW {
             W() => write!(f, "ω"),
         }
     }
+}
+
+impl From<isize> for NW {
+    fn from(item: isize) -> Self {
+        N(item)
+    }
+}
+
+#[allow(non_camel_case_types)]
+pub struct ω;
+
+impl From<ω> for NW {
+    fn from(_: ω) -> Self {
+        W()
+    }
+}
+
+#[macro_export]
+macro_rules! nwc {
+    ($($e:expr),*) => {
+        mk_nwc(&[$({let _nw:NW = $e.into(); _nw}),*])
+    };
 }
 
 impl Add<NW> for NW {
@@ -106,7 +129,7 @@ fn is_in(nwi: &NW, nwj: &NW) -> bool {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct NWC(pub Vec<NW>);
 
-pub fn nwc(nws: &[NW]) -> NWC {
+pub fn mk_nwc(nws: &[NW]) -> NWC {
     NWC(nws.to_vec())
 }
 
@@ -167,7 +190,7 @@ fn rebuild1(nw: &NW) -> Vec<NW> {
 
 fn rebuild(c: &NWC) -> Vec<Vec<NWC>> {
     let nwss: Vec<Vec<NW>> = cartesian(&vec_map!(rebuild1(nw); nw in &c.0));
-    let cs = vec_map!(nwc(&nws); nws in nwss);
+    let cs = vec_map!(mk_nwc(&nws); nws in nwss);
     vec_map!(vec![c1]; c1 in cs, &c1 != c)
 }
 
@@ -222,23 +245,51 @@ mod tests {
     }
 
     #[test]
+    fn test_into_nw() {
+        let nw25 = NW::from(25);
+        assert_eq!(nw25, N(25));
+        let nw30 = {
+            let _tmp: NW = 30.into();
+            _tmp
+        };
+        assert_eq!(nw30, N(30));
+        let w1 = NW::from(ω);
+        assert_eq!(w1, W());
+        let w2 = {
+            let _tmp: NW = ω.into();
+            _tmp
+        };
+        assert_eq!(w2, W());
+    }
+
+    #[test]
+    fn test_nwc() {
+        let i = N(10);
+        assert_eq!(
+            format!("{:?}", nwc!(25 + 1, ω, i + 1)),
+            "NWC([N(26), W, N(11)])"
+        );
+        assert_eq!(format!("{:?}", nwc!()), "NWC([])");
+    }
+
+    #[test]
     fn test_display_nwc() {
-        assert_eq!(nwc(&[N(1), W(), N(2)]).to_string(), "(1,ω,2)");
-        assert_eq!(nwc(&[]).to_string(), "()");
+        assert_eq!(nwc!(1, ω, 2).to_string(), "(1,ω,2)");
+        assert_eq!(nwc!().to_string(), "()");
     }
 
     struct TestCW;
 
     impl CountersWorld for TestCW {
         fn start() -> NWC {
-            nwc(&[N(2), N(0)])
+            nwc!(2, 0)
         }
 
         fn rules(c: &NWC) -> Vec<(bool, NWC)> {
             let (i, j) = (c.0[0], c.0[1]);
             vec![
-                (i >= 1, nwc(&[i - 1, j + 1])), //
-                (j >= 1, nwc(&[i + 1, j - 1])), //
+                (i >= 1, nwc!(i - 1, j + 1)), //
+                (j >= 1, nwc!(i + 1, j - 1)), //
             ]
         }
 
@@ -249,11 +300,8 @@ mod tests {
 
     fn mg() -> Rc<Graph<NWC>> {
         forth(
-            &nwc(&[N(2), N(0)]),
-            &[forth(
-                &nwc(&[W(), W()]),
-                &[back(&nwc(&[W(), W()])), back(&nwc(&[W(), W()]))],
-            )],
+            &nwc!(2, 0),
+            &[forth(&nwc!(ω, ω), &[back(&nwc!(ω, ω)), back(&nwc!(ω, ω))])],
         )
     }
 

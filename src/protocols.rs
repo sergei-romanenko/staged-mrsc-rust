@@ -1,23 +1,24 @@
 use crate::counters::*;
+use crate::nwc;
 
 use std::fmt::Debug;
 
-use NW::{N, W};
+// use NW::{N, W};
 
 #[derive(Debug)]
 struct Synapse;
 
 impl CountersWorld for Synapse {
     fn start() -> NWC {
-        nwc(&[W(), N(0), N(0)])
+        nwc!(ω, 0, 0)
     }
 
     fn rules(c: &NWC) -> Vec<(bool, NWC)> {
         let (i, d, v) = (c.0[0], c.0[1], c.0[2]);
         vec![
-            (i >= 1, nwc(&[i + d - 1, N(0), v + 1])),
-            (v >= 1, nwc(&[i + d + v - 1, N(1), N(0)])),
-            (i >= 1, nwc(&[i + d + v - 1, N(1), N(0)])),
+            (i >= 1, nwc!(i + d - 1, 0, v + 1)),
+            (v >= 1, nwc!(i + d + v - 1, 1, 0)),
+            (i >= 1, nwc!(i + d + v - 1, 1, 0)),
         ]
     }
 
