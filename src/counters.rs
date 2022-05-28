@@ -41,13 +41,6 @@ impl From<ω> for NW {
     }
 }
 
-#[macro_export]
-macro_rules! nwc {
-    ($($e:expr),*) => {
-        mk_nwc(&[$({let _nw:NW = $e.into(); _nw}),*])
-    };
-}
-
 impl Add<NW> for NW {
     type Output = NW;
 
@@ -133,6 +126,13 @@ pub fn mk_nwc(nws: &[NW]) -> NWC {
     NWC(nws.to_vec())
 }
 
+#[macro_export]
+macro_rules! nwc {
+    ($($e:expr),*) => {
+        mk_nwc(&[$({let _nw:NW = $e.into(); _nw}),*])
+    };
+}
+
 impl fmt::Display for NWC {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let nws = vec_map!(format!("{}", nw); nw in self.0.clone());
@@ -210,6 +210,53 @@ impl<CW: CountersWorld> ScWorld for CountersScWorld<CW> {
     }
 }
 
+#[macro_export]
+macro_rules! mk_r_params {
+    (@mk_tail $c:ident, $k:ident, $($i:ident),*) => {
+        $(
+            #[allow(unused_variables)]
+            let $i = $c.0[$k]; $k += 1;
+        )*
+    };
+    ($c:ident, $($i:tt)*) => {
+        let mut _k = 0;
+        mk_r_params!(@mk_tail $c, _k, $($i)*)
+    };
+}
+
+#[macro_export]
+macro_rules! counter_system {
+    (
+        Name $name:ident;
+        Params($($params:tt)*);
+        Start($($start:tt)*);
+        Unsafe($unsafe:expr);
+        Rules{
+            $($p:expr => $($e:expr),*;)*
+        };
+    ) => {
+        #[derive(Debug)]
+        struct $name;
+        impl CountersWorld for $name {
+            fn start() -> NWC {
+                nwc!($($start)*)
+            }
+            fn is_unsafe(_c: &NWC) -> bool {
+                mk_r_params!(_c, $($params)*);
+                $unsafe
+            }
+
+            fn rules(_c: &NWC) -> Vec<(bool, NWC)> {
+                mk_r_params!(_c, $($params)*);
+
+                vec![
+                    $(($p, nwc!($($e),*)),)*
+                ]
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -278,15 +325,16 @@ mod tests {
         assert_eq!(nwc!().to_string(), "()");
     }
 
-    struct TestCW;
+    struct TestCW2;
 
-    impl CountersWorld for TestCW {
+    impl CountersWorld for TestCW2 {
         fn start() -> NWC {
             nwc!(2, 0)
         }
 
-        fn rules(c: &NWC) -> Vec<(bool, NWC)> {
-            let (i, j) = (c.0[0], c.0[1]);
+        fn rules(_c: &NWC) -> Vec<(bool, NWC)> {
+            mk_r_params!(_c, i, j);
+
             vec![
                 (i >= 1, nwc!(i - 1, j + 1)), //
                 (j >= 1, nwc!(i + 1, j - 1)), //
@@ -296,6 +344,17 @@ mod tests {
         fn is_unsafe(_: &NWC) -> bool {
             false
         }
+    }
+
+    counter_system! {
+        Name TestCW;
+        Params(i,j);
+        Start(2, 0);
+        Unsafe(false);
+        Rules{
+            i >= 1 => i - 1, j + 1;
+            j >= 1 => i + 1, j - 1;
+        };
     }
 
     fn mg() -> Rc<Graph<NWC>> {
