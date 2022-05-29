@@ -122,17 +122,6 @@ fn is_in(nwi: &NW, nwj: &NW) -> bool {
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct NWC(pub Vec<NW>);
 
-pub fn mk_nwc(nws: &[NW]) -> NWC {
-    NWC(nws.to_vec())
-}
-
-#[macro_export]
-macro_rules! nwc {
-    ($($e:expr),*) => {
-        mk_nwc(&[$({let _nw:NW = $e.into(); _nw}),*])
-    };
-}
-
 impl fmt::Display for NWC {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let nws = vec_map!(format!("{}", nw); nw in self.0.clone());
@@ -190,7 +179,7 @@ fn rebuild1(nw: &NW) -> Vec<NW> {
 
 fn rebuild(c: &NWC) -> Vec<Vec<NWC>> {
     let nwss: Vec<Vec<NW>> = cartesian(&vec_map!(rebuild1(nw); nw in &c.0));
-    let cs = vec_map!(mk_nwc(&nws); nws in nwss);
+    let cs = vec_map!(NWC(nws); nws in nwss);
     vec_map!(vec![c1]; c1 in cs, &c1 != c)
 }
 
@@ -211,25 +200,24 @@ impl<CW: CountersWorld> ScWorld for CountersScWorld<CW> {
 }
 
 #[macro_export]
-macro_rules! mk_r_params {
-    (@mk_tail $c:ident, $k:ident, $($i:ident),*) => {
+macro_rules! counter_system {
+    (@mk_params $c:ident, $($i:ident),*) => {
+        let mut _k = 0;
+        counter_system!(@mk_params_tail $c, _k, $($i),*)
+    };
+    (@mk_params_tail $c:ident, $k:ident, $($i:ident),*) => {
         $(
             #[allow(unused_variables)]
             let $i = $c.0[$k]; $k += 1;
         )*
     };
-    ($c:ident, $($i:tt)*) => {
-        let mut _k = 0;
-        mk_r_params!(@mk_tail $c, _k, $($i)*)
+    (@to_nwc $($e:expr),*) => {
+        NWC(vec![$({let _nw:NW = $e.into(); _nw}),*])
     };
-}
-
-#[macro_export]
-macro_rules! counter_system {
     (
         Name $name:ident;
-        Params($($params:tt)*);
-        Start($($start:tt)*);
+        Params($($params:ident),*);
+        Start($($start:expr),*);
         Unsafe($unsafe:expr);
         Rules{
             $($p:expr => $($e:expr),*;)*
@@ -239,18 +227,18 @@ macro_rules! counter_system {
         struct $name;
         impl CountersWorld for $name {
             fn start() -> NWC {
-                nwc!($($start)*)
+                counter_system!(@to_nwc $($start),*)
             }
             fn is_unsafe(_c: &NWC) -> bool {
-                mk_r_params!(_c, $($params)*);
+                counter_system!(@mk_params _c, $($params),*);
                 $unsafe
             }
 
             fn rules(_c: &NWC) -> Vec<(bool, NWC)> {
-                mk_r_params!(_c, $($params)*);
+                counter_system!(@mk_params _c, $($params),*);
 
                 vec![
-                    $(($p, nwc!($($e),*)),)*
+                    $(($p, counter_system!(@to_nwc $($e),*))),*
                 ]
             }
         }
@@ -309,6 +297,11 @@ mod tests {
         assert_eq!(w2, W());
     }
 
+    macro_rules! nwc {
+        ($($e:expr),*) => {
+            NWC(vec![$({let _nw:NW = $e.into(); _nw}),*])
+        };
+    }
     #[test]
     fn test_nwc() {
         let i = N(10);
@@ -325,15 +318,20 @@ mod tests {
         assert_eq!(nwc!().to_string(), "()");
     }
 
-    struct TestCW2;
+    #[derive(Debug)]
+    struct TestCW0;
 
-    impl CountersWorld for TestCW2 {
+    impl CountersWorld for TestCW0 {
         fn start() -> NWC {
             nwc!(2, 0)
         }
 
         fn rules(_c: &NWC) -> Vec<(bool, NWC)> {
-            mk_r_params!(_c, i, j);
+            let mut _k = 0;
+            let i = _c.0[_k];
+            _k += 1;
+            let j = _c.0[_k];
+            _k += 1;
 
             vec![
                 (i >= 1, nwc!(i - 1, j + 1)), //
@@ -347,7 +345,7 @@ mod tests {
     }
 
     counter_system! {
-        Name TestCW;
+        Name TestCW1;
         Params(i,j);
         Start(2, 0);
         Unsafe(false);
@@ -364,14 +362,19 @@ mod tests {
         )
     }
 
-    #[test]
-    fn test_counters_sc_world() {
-        let s = CountersScWorld::new(TestCW, 3, 10);
-        let start_conf = TestCW::start();
+    fn run_counters_sc_world<CW: CountersWorld>(cw: CW, m: isize, d: usize) {
+        let s = CountersScWorld::new(cw, m, d);
+        let start_conf = CW::start();
         let gs = naive_mrsc(&s, start_conf.clone());
         let l = lazy_mrsc(&s, start_conf);
         assert_eq!(unroll(&l), gs);
         let ml = cl_min_size(&l);
         assert_eq!(&unroll(&ml)[0], &mg());
+    }
+
+    #[test]
+    fn test_counters_sc_world() {
+        run_counters_sc_world(TestCW0, 3, 10);
+        run_counters_sc_world(TestCW1, 3, 10);
     }
 }

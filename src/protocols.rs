@@ -1,6 +1,6 @@
 use crate::counters::*;
 
-use crate::{nwc, counter_system, mk_r_params};
+use crate::{counter_system};
 use std::fmt::Debug;
 
 counter_system! {
