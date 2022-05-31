@@ -215,13 +215,12 @@ macro_rules! counter_system {
         NWC(vec![$({let _nw:NW = $e.into(); _nw}),*])
     };
     (
-        Name $name:ident;
-        Params($($params:ident),*);
+        $name:ident($($params:ident),*);
         Start($($start:expr),*);
         Unsafe($unsafe:expr);
         Rules{
             $($p:expr => $($e:expr),*;)*
-        };
+        }
     ) => {
         #[derive(Debug)]
         struct $name;
@@ -345,14 +344,13 @@ mod tests {
     }
 
     counter_system! {
-        Name TestCW1;
-        Params(i,j);
+        TestCW1(i,j);
         Start(2, 0);
         Unsafe(false);
         Rules{
             i >= 1 => i - 1, j + 1;
             j >= 1 => i + 1, j - 1;
-        };
+        }
     }
 
     fn mg() -> Rc<Graph<NWC>> {
