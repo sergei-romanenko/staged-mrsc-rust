@@ -59,17 +59,21 @@ use itertools::Itertools;
 use std::rc::Rc;
 
 pub trait ScWorld {
-  type C: Clone;
+    type C: Clone;
 
-  fn is_dangerous(&self, h: &History<Self::C>) -> bool;
+    fn is_dangerous(&self, h: &History<Self::C>) -> bool;
 
-  fn is_foldable_to(&self, c1: &Self::C, c2: &Self::C) -> bool;
+    fn is_foldable_to(&self, c1: &Self::C, c2: &Self::C) -> bool;
 
-  fn develop(&self, c: &Self::C) -> Vec<Vec<Self::C>>;
+    fn develop(&self, c: &Self::C) -> Vec<Vec<Self::C>>;
 
-  fn is_foldable_to_history(&self, c: &Self::C, h: &History<Self::C>) -> bool {
-    h.any(|c2| self.is_foldable_to(c, c2))
-  }
+    fn is_foldable_to_history(
+        &self,
+        c: &Self::C,
+        h: &History<Self::C>,
+    ) -> bool {
+        h.any(|c2| self.is_foldable_to(c, c2))
+    }
 }
 
 // Big-step multi-result supercompilation
@@ -77,26 +81,26 @@ pub trait ScWorld {
 
 fn naive_mrsc_loop<S>(s: &S, h: &History<S::C>, c: S::C) -> Gs<S::C>
 where
-  S: ScWorld,
+    S: ScWorld,
 {
-  if s.is_foldable_to_history(&c, &h) {
-    return vec![back(&c)];
-  } else if s.is_dangerous(&h) {
-    return vec![];
-  } else {
-    let css = s.develop(&c);
-    let h1 = h.cons(c.clone());
-    let gsss = map!(cartesian(&vec_map!(naive_mrsc_loop(s, &h1, c1); c1 in cs));
+    if s.is_foldable_to_history(&c, &h) {
+        return vec![back(&c)];
+    } else if s.is_dangerous(&h) {
+        return vec![];
+    } else {
+        let css = s.develop(&c);
+        let h1 = h.cons(c.clone());
+        let gsss = map!(cartesian(&vec_map!(naive_mrsc_loop(s, &h1, c1); c1 in cs));
                 cs in css);
-    return vec_map!(forth(&c, &gs); gs in Itertools::concat(gsss));
-  }
+        return vec_map!(forth(&c, &gs); gs in Itertools::concat(gsss));
+    }
 }
 
 pub fn naive_mrsc<S>(s: &S, c0: S::C) -> Gs<S::C>
 where
-  S: ScWorld,
+    S: ScWorld,
 {
-  naive_mrsc_loop(s, &History::new(), c0)
+    naive_mrsc_loop(s, &History::new(), c0)
 }
 
 // "Lazy" multi-result supercompilation.
@@ -108,69 +112,69 @@ where
 
 fn lazy_mrsc_loop<S>(s: &S, h: &History<S::C>, c: S::C) -> Rc<LazyGraph<S::C>>
 where
-  S: ScWorld,
+    S: ScWorld,
 {
-  if s.is_foldable_to_history(&c, &h) {
-    stop(&c)
-  } else if s.is_dangerous(&h) {
-    empty()
-  } else {
-    let css = s.develop(&c);
-    let h1 = h.cons(c.clone());
-    let ls: Vec<Ls<S::C>> = vec_map!(vec_map!(lazy_mrsc_loop(s, &h1, c1); c1 in cs);
+    if s.is_foldable_to_history(&c, &h) {
+        stop(&c)
+    } else if s.is_dangerous(&h) {
+        empty()
+    } else {
+        let css = s.develop(&c);
+        let h1 = h.cons(c.clone());
+        let ls: Vec<Ls<S::C>> = vec_map!(vec_map!(lazy_mrsc_loop(s, &h1, c1); c1 in cs);
         cs in css);
-    build(&c, &ls)
-  }
+        build(&c, &ls)
+    }
 }
 
 pub fn lazy_mrsc<S>(s: &S, c0: S::C) -> Rc<LazyGraph<S::C>>
 where
-  S: ScWorld,
+    S: ScWorld,
 {
-  lazy_mrsc_loop(s, &History::new(), c0)
+    lazy_mrsc_loop(s, &History::new(), c0)
 }
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+    use super::*;
 
-  use std::rc::Rc;
+    use std::rc::Rc;
 
-  fn gs3() -> Vec<Rc<Graph<isize>>> {
-    vec![
-      forth(&0, &[forth(&1, &[forth(&2, &[back(&0), back(&1)])])]),
-      forth(&0, &[forth(&1, &[forth(&2, &[back(&1)])])]),
-      forth(
-        &0,
-        &[forth(&1, &[forth(&2, &[forth(&3, &[back(&0), back(&2)])])])],
-      ),
-      forth(&0, &[forth(&1, &[forth(&2, &[forth(&3, &[back(&2)])])])]),
-    ]
-  }
+    fn gs3() -> Vec<Rc<Graph<isize>>> {
+        vec![
+            forth(&0, &[forth(&1, &[forth(&2, &[back(&0), back(&1)])])]),
+            forth(&0, &[forth(&1, &[forth(&2, &[back(&1)])])]),
+            forth(
+                &0,
+                &[forth(&1, &[forth(&2, &[forth(&3, &[back(&0), back(&2)])])])],
+            ),
+            forth(&0, &[forth(&1, &[forth(&2, &[forth(&3, &[back(&2)])])])]),
+        ]
+    }
 
-  fn naive_mrsc_isize(c: isize) -> Gs<isize> {
-    naive_mrsc(&0isize, c)
-  }
+    fn naive_mrsc_isize(c: isize) -> Gs<isize> {
+        naive_mrsc(&0isize, c)
+    }
 
-  fn lazy_mrsc_isize(c: isize) -> Rc<LazyGraph<isize>> {
-    lazy_mrsc(&0isize, c)
-  }
+    fn lazy_mrsc_isize(c: isize) -> Rc<LazyGraph<isize>> {
+        lazy_mrsc(&0isize, c)
+    }
 
-  #[test]
-  fn test_naive_mrsc() {
-    assert_eq!(naive_mrsc_isize(0), gs3())
-  }
+    #[test]
+    fn test_naive_mrsc() {
+        assert_eq!(naive_mrsc_isize(0), gs3())
+    }
 
-  #[test]
-  fn test_unroll_lazy_mrsc() {
-    assert_eq!(unroll(&lazy_mrsc_isize(0)), gs3());
-  }
+    #[test]
+    fn test_unroll_lazy_mrsc() {
+        assert_eq!(unroll(&lazy_mrsc_isize(0)), gs3());
+    }
 
-  #[test]
-  fn test_min_size_cl() {
-    assert_eq!(
-      unroll(&cl_min_size(&lazy_mrsc_isize(0))),
-      [forth(&0, &[forth(&1, &[forth(&2, &[back(&1)])])])]
-    );
-  }
+    #[test]
+    fn test_min_size_cl() {
+        assert_eq!(
+            unroll(&cl_min_size(&lazy_mrsc_isize(0))),
+            [forth(&0, &[forth(&1, &[forth(&2, &[back(&1)])])])]
+        );
+    }
 }
