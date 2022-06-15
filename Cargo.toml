@@ -13,3 +13,5 @@ doctest = false
 itertools = "0.10.3"
 iter-comprehensions = "0.5.0"
 lazy-st = "0.2.2"
+either = "1.6.1"
+
